@@ -15,14 +15,9 @@ func main() {
 
 	err := python.Run(func() {
 		np := python.Import("numpy")
-		defer np.DecRef()
-
 		ones := np.Attr("ones")
-		defer ones.DecRef()
 
 		res := ones.Call(5)
-		defer res.DecRef()
-
 		logf("np.ones(5) = %s", res.String())
 	})
 	if err != nil {

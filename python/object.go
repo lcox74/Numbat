@@ -12,14 +12,17 @@ type Object struct {
 	p *C.PyObject
 }
 
-// wrap takes ownership of a returned pointer
+// wrap takes ownership of a returned pointer and registers it with the active
+// scope so it is decref'd when the scope ends.
 func wrap(p *C.PyObject) *Object {
 	if p == nil {
 		C.PyErr_Print()
 		panic("python call returned nil")
 	}
 
-	return &Object{p}
+	o := &Object{p}
+	track(o)
+	return o
 }
 
 func Import(name string) *Object {
@@ -48,9 +51,12 @@ func (o *Object) Call(args ...any) *Object {
 	return wrap(C.PyObject_CallObject(o.p, t))
 }
 
+// DecRef releases the reference. It is idempotent, so an explicit DecRef and the
+// automatic scope cleanup can both run without double-freeing.
 func (o *Object) DecRef() {
 	if o != nil && o.p != nil {
 		C.Py_DecRef(o.p)
+		o.p = nil
 	}
 }
 

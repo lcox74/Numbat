@@ -15,8 +15,8 @@ func Version() string {
 	return C.GoString(C.Py_GetVersion())
 }
 
-// Run initialises the interpreter, runs f, then finalises. All Python work must
-// happen inside f, which is pinned to a single OS thread.
+// Run initialises the interpreter, runs f, then finalises. All Python work
+// must happen inside f, which is pinned to a single OS thread.
 func Run(f func()) (err error) {
 	// Keep interpreter calls on one OS thread.
 	runtime.LockOSThread()
@@ -34,6 +34,7 @@ func Run(f func()) (err error) {
 		}
 	}()
 
-	f()
+	// Track every object created during f and release them in LIFO order.
+	WithScope(f)
 	return nil
 }
