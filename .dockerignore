@@ -1,0 +1,14 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Mac
+.DS_Store
+
+# Misc
+*.md
