@@ -9,48 +9,10 @@ import "C"
 import (
 	"fmt"
 	"runtime"
-	"unsafe"
 )
 
 func logf(format string, args ...any) {
 	fmt.Printf("[go] "+format+"\n", args...)
-}
-
-// withCString hands a C string to fn and frees it afterwards.
-func withCString(s string, fn func(*C.char)) {
-	c := C.CString(s)
-	defer C.free(unsafe.Pointer(c))
-	fn(c)
-}
-
-// importModule imports a Python module by name.
-func importModule(name string) *C.PyObject {
-	var mod *C.PyObject
-	withCString(name, func(c *C.char) {
-		mod = C.PyImport_ImportModule(c)
-	})
-
-	// Print any error that might happen
-	if mod == nil {
-		C.PyErr_Print()
-	}
-
-	return mod
-}
-
-// getAttrString reads an attribute off a Python object.
-func getAttrString(o *C.PyObject, attr string) *C.PyObject {
-	var v *C.PyObject
-	withCString(attr, func(c *C.char) {
-		v = C.PyObject_GetAttrString(o, c)
-	})
-
-	return v
-}
-
-// goString decodes a Python str object into a Go string.
-func goString(o *C.PyObject) string {
-	return C.GoString(C.PyUnicode_AsUTF8(o))
 }
 
 func runPython(f func()) {
@@ -84,23 +46,18 @@ func runPython(f func()) {
 
 func main() {
 	runPython(func() {
-		// Import NumPy
-		np := importModule("numpy")
-		if np == nil {
-			logf("warning: could not import numpy")
-			return
-		}
-		defer C.Py_DecRef(np)
+		np := Import("numpy")
+		defer np.DecRef()
 
-		// Get NumPy Version
-		ver := getAttrString(np, "__version__")
-		if ver == nil {
-			logf("warning: numpy has no __version__")
-			return
-		}
-		defer C.Py_DecRef(ver)
+		onesFn := np.Attr("ones")
+		defer onesFn.DecRef()
 
-		// Print the NumPy Version
-		logf("numpy version %s", goString(ver))
+		t := C.PyTuple_New(1)
+		C.PyTuple_SetItem(t, 0, AsPyObj(5))
+		res := wrap(C.PyObject_CallObject(onesFn.p, t))
+		defer res.DecRef()
+		C.Py_DecRef(t)
+
+		logf("np.ones(5) = %s", res.String())
 	})
 }
