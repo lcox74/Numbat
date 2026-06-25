@@ -1,4 +1,4 @@
-package main
+package python
 
 /*
 #cgo pkg-config: python3-embed
@@ -7,10 +7,12 @@ package main
 import "C"
 import "unsafe"
 
+// Object owns a reference to a CPython object. Call DecRef when done.
 type Object struct {
 	p *C.PyObject
 }
 
+// wrap takes ownership of a returned pointer
 func wrap(p *C.PyObject) *Object {
 	if p == nil {
 		C.PyErr_Print()
@@ -34,6 +36,18 @@ func (o *Object) Attr(name string) *Object {
 	return wrap(C.PyObject_GetAttrString(o.p, c))
 }
 
+func (o *Object) Call(args ...any) *Object {
+	t := C.PyTuple_New(C.Py_ssize_t(len(args)))
+	defer C.Py_DecRef(t)
+
+	for i, a := range args {
+		// PyTuple_SetItem steals the reference.
+		C.PyTuple_SetItem(t, C.Py_ssize_t(i), toPyObject(a))
+	}
+
+	return wrap(C.PyObject_CallObject(o.p, t))
+}
+
 func (o *Object) DecRef() {
 	if o != nil && o.p != nil {
 		C.Py_DecRef(o.p)
@@ -45,9 +59,7 @@ func (o *Object) Float() float64 {
 }
 
 func (o *Object) String() string {
-	// PyUnicode_AsUTF8 only works on str objects; stringify first so any
-	// object (e.g. an ndarray) renders and we don't leave a dangling
-	// exception that surfaces at interpreter shutdown.
+	// PyUnicode_AsUTF8 only works on str objects
 	s := C.PyObject_Str(o.p)
 	if s == nil {
 		C.PyErr_Print()
@@ -58,7 +70,8 @@ func (o *Object) String() string {
 	return C.GoString(C.PyUnicode_AsUTF8(s))
 }
 
-func AsPyObj(v any) *C.PyObject {
+// toPyObject converts a Go value into a new Python object reference.
+func toPyObject(v any) *C.PyObject {
 	switch x := v.(type) {
 	case *Object:
 		C.Py_IncRef(x.p)
