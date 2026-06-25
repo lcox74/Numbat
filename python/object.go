@@ -40,6 +40,12 @@ func (o *Object) Attr(name string) *Object {
 }
 
 func (o *Object) Call(args ...any) *Object {
+	return o.CallKw(args, nil)
+}
+
+// CallKw calls o with positional args and keyword args. Pass nil kwargs for a
+// plain call.
+func (o *Object) CallKw(args []any, kwargs map[string]any) *Object {
 	t := C.PyTuple_New(C.Py_ssize_t(len(args)))
 	defer C.Py_DecRef(t)
 
@@ -48,7 +54,29 @@ func (o *Object) Call(args ...any) *Object {
 		C.PyTuple_SetItem(t, C.Py_ssize_t(i), toPyObject(a))
 	}
 
-	return wrap(C.PyObject_CallObject(o.p, t))
+	// PyObject_Call wants a dict or NULL; leave kw nil when there are none.
+	var kw *C.PyObject
+	if len(kwargs) > 0 {
+		kw = C.PyDict_New()
+		defer C.Py_DecRef(kw)
+
+		for k, v := range kwargs {
+			ck := C.CString(k)
+			val := toPyObject(v)
+
+			// PyDict_SetItemString does not steal, so drop our reference after.
+			C.PyDict_SetItemString(kw, ck, val)
+			C.Py_DecRef(val)
+			C.free(unsafe.Pointer(ck))
+		}
+	}
+
+	return wrap(C.PyObject_Call(o.p, t, kw))
+}
+
+// MatMul is the Python `@` operator: o @ other.
+func (o *Object) MatMul(other *Object) *Object {
+	return wrap(C.PyNumber_MatrixMultiply(o.p, other.p))
 }
 
 // DecRef releases the reference. It is idempotent, so an explicit DecRef and the
@@ -82,6 +110,13 @@ func toPyObject(v any) *C.PyObject {
 	case *Object:
 		C.Py_IncRef(x.p)
 		return x.p
+	case []any:
+		list := C.PyList_New(C.Py_ssize_t(len(x)))
+		for i, e := range x {
+			C.PyList_SetItem(list, C.Py_ssize_t(i), toPyObject(e))
+		}
+
+		return list
 	case float64:
 		return C.PyFloat_FromDouble(C.double(x))
 	case int:
