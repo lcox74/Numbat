@@ -34,12 +34,14 @@ func main() {
 			[]any{[]any{[]any{1, 2}, []any{3, 4}}},
 			map[string]any{"dtype": f64},
 		)
+		logf("a = %s", oneLine(a.String()))
 
 		// b = np.array([[5, 6], [7, 8]], dtype=np.float64)
 		b := array.CallKw(
 			[]any{[]any{[]any{5, 6}, []any{7, 8}}},
 			map[string]any{"dtype": f64},
 		)
+		logf("b = %s", oneLine(b.String()))
 
 		// a @ b
 		res := a.MatMul(b)
